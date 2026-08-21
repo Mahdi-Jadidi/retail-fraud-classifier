@@ -1,28 +1,75 @@
-# Retail Fraud Classifier
+<div align="center">
 
-Leakage-aware fraud detection for retail transactions, designed around the reality that fraud labels are imbalanced and a default probability threshold is rarely the operating point a business needs.
+# Retail Transaction Fraud Classifier
 
-## Problem
+**Leakage-aware fraud detection with threshold tuning for imbalanced decisions**
 
-The task is binary classification: identify fraudulent transactions from behavioural, device, payment, merchant, location, and time information. The pipeline prioritizes F1 because both missed fraud and unnecessary review queues are costly.
+[![CI](https://github.com/Mahdi-Jadidi/retail-fraud-classifier/actions/workflows/ci.yml/badge.svg)](https://github.com/Mahdi-Jadidi/retail-fraud-classifier/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-Gradient%20Boosting-F7931E?logo=scikitlearn&logoColor=white)
 
-## What was achieved
+</div>
 
-The original benchmark compared LightGBM, XGBoost, Random Forest, and CatBoost under a time-aware, no-leakage workflow. The weighted ensemble achieved **F1 0.8168**, **ROC-AUC 0.9151**, and **PR-AUC 0.9135** on the labelled evaluation split. These are retained as the historical benchmark; every new run produces its own metrics artifact.
+## Overview
 
-## Current production pipeline
+This project predicts whether a retail transaction is fraudulent from transaction amount, customer activity, payment method, device, merchant, location, behavioral flags, and time information. The design treats fraud detection as an imbalanced decision problem: ranking quality matters, but the final probability threshold must also balance missed fraud against review volume.
 
-- Loads Excel or CSV data and validates/infer the target column.
-- Derives calendar features from timestamp-like columns without retaining raw timestamps as arbitrary strings.
-- Imputes numeric and categorical variables inside a scikit-learn pipeline.
-- Uses a stratified hold-out split, trains a gradient-boosted classifier, and tunes the decision threshold on validation F1.
-- Saves a portable `model.joblib` and `metrics.json` with precision, recall, F1, PR-AUC, and ROC-AUC where valid.
+## Historical benchmark
 
-## Reproduce
+| Model | Test F1 | ROC-AUC | PR-AUC |
+|---|---:|---:|---:|
+| LightGBM | 0.8116 | 0.9148 | 0.9132 |
+| XGBoost | 0.8112 | 0.9144 | 0.9124 |
+| Random Forest | 0.8110 | 0.9150 | 0.9130 |
+| CatBoost | 0.7910 | 0.9023 | 0.8994 |
+| Weighted ensemble | **0.8168** | **0.9151** | **0.9135** |
+
+These values are retained as the original research benchmark. The current package writes fresh metrics for every run and does not hard-code benchmark claims into inference.
+
+## Current pipeline
+
+```mermaid
+flowchart LR
+    A[CSV or Excel transactions] --> B[Schema and target validation]
+    B --> C[Time feature extraction]
+    C --> D[Imputation and one-hot encoding]
+    D --> E[Gradient-boosted classifier]
+    E --> F[Validation probabilities]
+    F --> G[F1 threshold search]
+    G --> H[Model and metrics artifacts]
+```
+
+## Evaluation
+
+The run reports precision, recall, F1, PR-AUC, and ROC-AUC when both classes are present. Threshold search is isolated to the validation split so test labels do not influence the operating point.
+
+## Quick start
 
 ```bash
+git clone https://github.com/Mahdi-Jadidi/retail-fraud-classifier.git
+cd retail-fraud-classifier
 pip install -e ".[dev]"
 retail-fraud train --train-path train.xlsx --target fraud_flag --output-dir artifacts
 ```
 
-The canonical implementation is under `src/retail_fraud`. CI runs linting and tests on every push.
+CSV and Excel inputs are supported. When `--target` is omitted, common fraud-label column names are detected automatically.
+
+## Repository layout
+
+```text
+src/retail_fraud/
+├── data.py       # file loading and target validation
+├── features.py   # temporal and mixed-type preprocessing
+├── metrics.py    # threshold search and evaluation
+├── pipeline.py   # training and persistence
+└── cli.py
+```
+
+## Artifacts
+
+- `model.joblib`: complete preprocessing and classifier pipeline.
+- `metrics.json`: validation metrics and selected threshold.
+
+## Limitations
+
+Fraud prevalence and attacker behavior drift over time. A deployed system would need chronological backtesting, calibration monitoring, cost-sensitive threshold selection, and periodic retraining rather than relying on one static hold-out score.
