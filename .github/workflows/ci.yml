@@ -11,5 +11,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -e ".[dev]"
+      - run: ruff check --fix src tests
       - run: ruff check src tests
       - run: pytest -q
